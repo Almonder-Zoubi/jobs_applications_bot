@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.DS_Store
+
+out/
+data/applications_ledger.jsonl
+data/jobs.json
+data/resume.pdf
+config/profile.json
+files/*.pdf
+files/*.docx
+*.json
