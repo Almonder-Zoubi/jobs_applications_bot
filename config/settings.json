@@ -1,0 +1,15 @@
+{
+  "daily_limit": 20,
+  "minimum_match_score": 60,
+  "mode": "prepare",
+  "output_dir": "out/applications",
+  "to_apply_dir": "out",
+  "ledger_path": "data/applications_ledger.jsonl",
+  "jobs_path": "data/jobs.json",
+  "profile_path": "config/profile.json",
+  "profile_context_path": "config/profile_context.md",
+  "use_llm": true,
+  "model": "llama3.2",
+  "ollama_url": "http://localhost:11434",
+  "ollama_timeout": 120
+}

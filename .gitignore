@@ -9,7 +9,8 @@ out/
 data/applications_ledger.jsonl
 data/jobs.json
 data/resume.pdf
+config/motivation_templates.json
 config/profile.json
+config/profile_context.md
 files/*.pdf
 files/*.docx
-*.json

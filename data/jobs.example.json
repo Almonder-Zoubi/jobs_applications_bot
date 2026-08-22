@@ -1,0 +1,16 @@
+[
+  {
+    "id": "example-python-dev-001",
+    "title": "Python Developer",
+    "company": "Example GmbH",
+    "location": "Berlin, Germany",
+    "url": "https://example.com/jobs/python-developer",
+    "description": "Build backend services and internal automation tools using Python and APIs.",
+    "requirements": [
+      "Strong Python skills",
+      "Experience with REST APIs",
+      "SQL knowledge",
+      "Git experience"
+    ]
+  }
+]

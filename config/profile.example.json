@@ -1,0 +1,48 @@
+{
+  "name": "Your Name",
+  "email": "you@example.com",
+  "phone": "+49 000 000000",
+  "location": "Berlin, Germany",
+  "cv_summary": "Software engineer with experience in Python, automation, data pipelines, web scraping, APIs, and cloud deployments.",
+  "background": [
+    "Built automation scripts for business workflows",
+    "Developed Python services and REST APIs",
+    "Worked with SQL databases and data validation",
+    "Collaborated with product and operations teams"
+  ],
+  "certificates": [
+    "AWS Certified Cloud Practitioner",
+    "Google Data Analytics Certificate"
+  ],
+  "skills": [
+    "Python",
+    "FastAPI",
+    "SQL",
+    "Playwright",
+    "Docker",
+    "Git",
+    "REST APIs",
+    "Automation"
+  ],
+  "interested_roles": [
+    "Python Developer",
+    "Automation Engineer",
+    "Backend Developer",
+    "Data Engineer",
+    "AI Engineer"
+  ],
+  "avoid_roles": [
+    "Senior Manager",
+    "Unpaid Internship"
+  ],
+  "preferred_locations": [
+    "Berlin",
+    "Germany",
+    "Remote",
+    "Europe"
+  ],
+  "work_authorization": "Authorized to work in Germany",
+  "salary_expectation": "Open to discussion",
+  "resume_path": "data/resume.pdf",
+  "cover_letter_style": "Professional, concise, confident, and specific."
+}
