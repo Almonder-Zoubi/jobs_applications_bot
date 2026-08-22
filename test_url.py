@@ -27,7 +27,7 @@ def main() -> int:
     parser.add_argument(
         "--model",
         default=DEFAULT_MODEL,
-        help="Ollama model name. Defaults to llama3.2.",
+        help="Ollama model name. Defaults to gemma3:12b.",
     )
     parser.add_argument(
         "--ollama-url",

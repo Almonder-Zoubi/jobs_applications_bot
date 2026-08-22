@@ -51,7 +51,7 @@ Start Ollama in one terminal:
 ollama serve
 ```
 
-Then evaluate one real job posting with `llama3.2`:
+Then evaluate one real job posting with `gemma3:12b`:
 
 ```bash
 python3 test_url.py --url "https://example.com/job-posting"
@@ -84,7 +84,7 @@ python3 scripts/evaluate_job_url.py "https://example.com/job-posting"
 Every evaluation (single-URL or daily batch) runs two independent checks and only decides `apply` if both agree:
 
 1. **Deterministic keyword match** (`job_bot/matcher.py`) — scores the job against `profile.json` skills, roles, and locations; applies a hard veto if the job **title** matches `avoid_roles`; and applies a softer score penalty (not a veto) if the full job **description** contains seniority signals — a "Senior"/"Staff"/"Principal"/"Lead"/"Head of"/"Director" title or a "N+ years" requirement where N ≥ 4. This is a soft penalty rather than a veto because body text can mention seniority in passing (e.g. "mentored by senior engineers") without the role itself requiring it — the LLM stage weighs the actual context.
-2. **LLM review** (`job_bot/ollama_client.py`, model `llama3.2` by default) — receives the same candidate/job/score data, the detected seniority signals, and the full text of `config/profile_context.md`, and independently returns `apply` or `no apply` with reasoning. It's explicitly instructed not to invent requirements that aren't in the job text and not to claim a skill is missing without checking the candidate's skills/background lists first.
+2. **LLM review** (`job_bot/ollama_client.py`, model `gemma3:12b` by default) — receives the same candidate/job/score data, the detected seniority signals, and the full text of `config/profile_context.md`, and independently returns `APPLY`/`NO_APPLY` plus a structured breakdown (`direct_matches`, `transferable_matches`, `missing_skills`, `hard_requirement_failures`, `experience_fit`, `interest_fit`, `reason`). A non-empty `hard_requirement_failures` always forces `no apply`, regardless of the LLM's own top-level decision. It's explicitly instructed not to invent requirements that aren't in the job text and not to claim a skill is missing without checking the candidate's skills/background lists first.
 
 The exported JSON's `decision_basis` block shows exactly what fed each stage, including `profile_context_used_by_llm` so you can confirm your guidance document was actually read for that run. Use `--no-llm` to see the keyword-only fallback decision in isolation.
 
@@ -101,7 +101,8 @@ The exported JSON's `decision_basis` block shows exactly what fed each stage, in
 - `to_apply_dir`: where the daily `to_apply_<date>.json` digest is written (default `out`)
 - `ledger_path`, `jobs_path`, `profile_path`, `profile_context_path`: input/output file locations
 - `use_llm`: whether `run_daily` uses the LLM stage (default `true`; `--no-llm` overrides per run)
-- `model`, `ollama_url`, `ollama_timeout`: which local model to use for the LLM stage. `llama3.3` (70B) is also available locally and reasons more reliably than the default `llama3.2` (3B) — slower, but worth trying via `"model": "llama3.3"` if you want a second opinion on a borderline decision.
+- `model`, `ollama_url`, `ollama_timeout`: which local model to use for the LLM stage. `llama3.3` (70B) is also available locally and reasons more reliably than the default `gemma3:12b` — slower, but worth trying via `"model": "llama3.3"` if you want a second opinion on a borderline decision.
+- `ollama_keep_alive`: how long Ollama keeps the model resident in memory after a request (default `"30m"`). `run_daily` also sizes one shared `num_ctx` for the whole batch and explicitly unloads the model (`keep_alive: 0`) once the run finishes, so the model loads once, stays loaded across every job in that run, and is freed from RAM when done instead of lingering or reloading per job.
 
 ## Adding Job Sources
 

@@ -9,7 +9,8 @@
   "profile_path": "config/profile.json",
   "profile_context_path": "config/profile_context.md",
   "use_llm": true,
-  "model": "llama3.2",
+  "model": "gemma3:12b",
   "ollama_url": "http://localhost:11434",
-  "ollama_timeout": 120
+  "ollama_timeout": 120,
+  "ollama_keep_alive": "30m"
 }

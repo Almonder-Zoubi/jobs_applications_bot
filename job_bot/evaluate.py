@@ -10,6 +10,7 @@ from job_bot.job_fetcher import fetch_job_from_url
 from job_bot.matcher import score_job
 from job_bot.models import CandidateProfile, JobPosting
 from job_bot.ollama_client import (
+    DEFAULT_KEEP_ALIVE,
     DEFAULT_MODEL,
     DEFAULT_OLLAMA_URL,
     evaluate_with_ollama,
@@ -29,6 +30,8 @@ def evaluate_job(
     ollama_timeout: int = 120,
     profile_source: str = "config/profile.json",
     profile_context_source: str = "config/profile_context.md",
+    ollama_keep_alive: str = DEFAULT_KEEP_ALIVE,
+    ollama_num_ctx: int | None = None,
 ) -> dict[str, Any]:
     match = score_job(profile, job)
 
@@ -44,6 +47,8 @@ def evaluate_job(
                 ollama_url=ollama_url,
                 timeout_seconds=ollama_timeout,
                 profile_context=profile_context,
+                keep_alive=ollama_keep_alive,
+                num_ctx=ollama_num_ctx,
             )
             llm_used = True
         except RuntimeError as exc:
@@ -52,10 +57,13 @@ def evaluate_job(
         llm_result = fallback_evaluation(match, min_score)
 
     hard_vetoes = decision_vetoes(match)
+    llm_hard_failures = list(llm_result.get("hard_requirement_failures") or [])
     deterministic_decision = "apply" if match.score >= min_score and not hard_vetoes else "no apply"
     final_decision = (
         "apply"
-        if deterministic_decision == "apply" and llm_result["decision"] == "apply"
+        if deterministic_decision == "apply"
+        and llm_result["decision"] == "apply"
+        and not llm_hard_failures
         else "no apply"
     )
 
@@ -68,8 +76,9 @@ def evaluate_job(
         "threshold": min_score,
         "decision_basis": {
             "final_rule": (
-                "apply only when keyword_score >= threshold, no hard veto exists, "
-                "and the local LLM also recommends apply"
+                "apply only when keyword_score >= threshold, no deterministic hard veto "
+                "exists, the local LLM also recommends apply, and the LLM raised no "
+                "hard_requirement_failures"
             ),
             "profile_source": profile_source,
             "profile_context_source": profile_context_source,
@@ -78,7 +87,7 @@ def evaluate_job(
             "keyword_threshold": min_score,
             "deterministic_decision": deterministic_decision,
             "llm_recommendation": llm_result["decision"],
-            "hard_vetoes": hard_vetoes,
+            "hard_vetoes": hard_vetoes + [f"LLM: {failure}" for failure in llm_hard_failures],
             "evidence_used": [
                 "config/profile.json candidate skills",
                 "config/profile.json candidate experience/background",

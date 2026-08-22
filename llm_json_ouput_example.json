@@ -1,0 +1,38 @@
+{
+  "decision": "APPLY",
+  "score": 82,
+  "confidence": 0.91,
+
+  "direct_matches": [
+    "Python",
+    "PostgreSQL",
+    "LLM applications"
+  ],
+
+  "transferable_matches": [
+    {
+      "required": "FastAPI",
+      "candidate_has": "Django/Python backend development",
+      "gap": "small"
+    },
+    {
+      "required": "REST APIs",
+      "candidate_has": "Django and HTTP/API experience",
+      "gap": "small"
+    }
+  ],
+
+  "missing_skills": [
+    {
+      "skill": "Docker",
+      "importance": "medium"
+    }
+  ],
+
+  "hard_requirement_failures": [],
+
+  "experience_fit": "good",
+  "interest_fit": "excellent",
+
+  "reason": "Strong Python/backend/database profile with unusually relevant LLM experience. FastAPI and Docker are learnable gaps rather than fundamental mismatches."
+}

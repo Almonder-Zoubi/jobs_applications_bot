@@ -1,7 +1,13 @@
 import unittest
 
 from job_bot.models import CandidateProfile, JobPosting, MatchResult
-from job_bot.ollama_client import build_evaluation_prompt, estimate_num_ctx
+from job_bot.ollama_client import (
+    build_evaluation_prompt,
+    compute_batch_num_ctx,
+    estimate_num_ctx,
+    fallback_evaluation,
+    normalize_llm_result,
+)
 
 
 def profile() -> CandidateProfile:
@@ -81,6 +87,79 @@ class EstimateNumCtxTest(unittest.TestCase):
 
     def test_never_below_smallest_bucket(self) -> None:
         self.assertEqual(estimate_num_ctx(""), 4096)
+
+
+class ComputeBatchNumCtxTest(unittest.TestCase):
+    def test_returns_smallest_bucket_for_empty_batch(self) -> None:
+        self.assertEqual(compute_batch_num_ctx(profile(), []), 4096)
+
+    def test_sizes_to_the_largest_job_in_the_batch(self) -> None:
+        small_job = job()
+        large_job = JobPosting(
+            id="2",
+            title="Python Developer",
+            company="Example",
+            location="Berlin",
+            url="https://example.com",
+            description="x" * 40000,
+            requirements=["Python"],
+        )
+
+        shared_ctx = compute_batch_num_ctx(profile(), [small_job, large_job])
+
+        self.assertEqual(shared_ctx, estimate_num_ctx(
+            build_evaluation_prompt(profile(), large_job, match(), 60, "")
+        ))
+
+
+class NormalizeLlmResultTest(unittest.TestCase):
+    def test_normalizes_uppercase_decision_and_clamps_ranges(self) -> None:
+        result = normalize_llm_result(
+            {
+                "decision": "APPLY",
+                "score": 150,
+                "confidence": 1.5,
+                "direct_matches": ["Python"],
+                "transferable_matches": [
+                    {"required": "FastAPI", "candidate_has": "Django", "gap": "small"}
+                ],
+                "missing_skills": [{"skill": "Docker", "importance": "medium"}],
+                "hard_requirement_failures": [],
+                "experience_fit": "good",
+                "interest_fit": "excellent",
+                "reason": "Strong match.",
+            }
+        )
+
+        self.assertEqual(result["decision"], "apply")
+        self.assertEqual(result["score"], 100)
+        self.assertEqual(result["confidence"], 1.0)
+        self.assertEqual(result["transferable_matches"][0]["gap"], "small")
+        self.assertEqual(result["missing_skills"][0]["importance"], "medium")
+
+    def test_unknown_decision_value_falls_back_to_no_apply(self) -> None:
+        result = normalize_llm_result({"decision": "maybe"})
+
+        self.assertEqual(result["decision"], "no apply")
+
+    def test_drops_malformed_transferable_match_entries(self) -> None:
+        result = normalize_llm_result(
+            {"transferable_matches": [{"required": "FastAPI"}, "not a dict"]}
+        )
+
+        self.assertEqual(result["transferable_matches"], [])
+
+
+class FallbackEvaluationTest(unittest.TestCase):
+    def test_includes_new_schema_fields(self) -> None:
+        result = fallback_evaluation(match(), threshold=60)
+
+        self.assertEqual(result["decision"], "apply")
+        self.assertIn("direct_matches", result)
+        self.assertEqual(
+            result["missing_skills"], []
+        )  # match() fixture has no missing_terms
+        self.assertEqual(result["hard_requirement_failures"], [])
 
 
 if __name__ == "__main__":

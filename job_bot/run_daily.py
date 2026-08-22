@@ -14,7 +14,13 @@ from job_bot.letter import generate_motivation_letter
 from job_bot.letter_templates import load_motivation_templates, select_letter_template
 from job_bot.matcher import score_job
 from job_bot.models import ApplicationPacket, JobPosting, LedgerEntry
-from job_bot.ollama_client import DEFAULT_MODEL, DEFAULT_OLLAMA_URL
+from job_bot.ollama_client import (
+    DEFAULT_KEEP_ALIVE,
+    DEFAULT_MODEL,
+    DEFAULT_OLLAMA_URL,
+    compute_batch_num_ctx,
+    unload_model,
+)
 
 
 def write_packet(packet: ApplicationPacket, output_root: Path) -> Path:
@@ -63,10 +69,15 @@ def build_to_apply_entry(
         "decision": evaluation["decision"],
         "keyword_score": evaluation["score"],
         "keyword_threshold": evaluation["threshold"],
+        "llm_score": llm_evaluation.get("score"),
         "llm_confidence": llm_evaluation.get("confidence"),
-        "fit_summary": llm_evaluation.get("fit_summary", ""),
-        "strengths": llm_evaluation.get("strengths") or evaluation["matched_terms"],
-        "missing_or_concerns": llm_evaluation.get("concerns") or evaluation["missing_or_gap_terms"],
+        "reason": llm_evaluation.get("reason", ""),
+        "direct_matches": llm_evaluation.get("direct_matches") or evaluation["matched_terms"],
+        "transferable_matches": llm_evaluation.get("transferable_matches", []),
+        "missing_skills": llm_evaluation.get("missing_skills")
+        or [{"skill": term, "importance": "medium"} for term in evaluation["missing_or_gap_terms"]],
+        "experience_fit": llm_evaluation.get("experience_fit", ""),
+        "interest_fit": llm_evaluation.get("interest_fit", ""),
         "description_confidence": job.description_confidence,
         "review_reasons": review_reasons,
         "suggested_letter_template": template,
@@ -77,14 +88,18 @@ def build_to_apply_entry(
 
 def needs_manual_review(job: JobPosting, evaluation: dict[str, Any]) -> tuple[bool, list[str]]:
     """A job can pass both stages and still be worth a second look before
-    actually applying — the LLM raised a concern, the deterministic matcher
-    flagged a seniority/experience-level signal, or the fetched description
-    was too thin to fully trust the evaluation. Route those to
-    to_preview_first instead of to_apply so a clean pass in to_apply really
-    means "nothing raised a flag", not just "score cleared the bar"."""
+    actually applying — the LLM flagged a high-importance missing skill, the
+    deterministic matcher flagged a seniority/experience-level signal, or the
+    fetched description was too thin to fully trust the evaluation. Route
+    those to to_preview_first instead of to_apply so a clean pass in
+    to_apply really means "nothing raised a flag", not just "score cleared
+    the bar". A job is never reachable here with a non-empty
+    hard_requirement_failures — evaluate_job already turns that into a hard
+    veto — so that field isn't checked again."""
     reasons: list[str] = []
-    if evaluation["llm"]["evaluation"].get("concerns"):
-        reasons.append("LLM raised a concern")
+    llm_evaluation = evaluation["llm"]["evaluation"]
+    if any(item.get("importance") == "high" for item in llm_evaluation.get("missing_skills", [])):
+        reasons.append("LLM flagged a high-importance missing skill")
     if any("Seniority" in reason for reason in evaluation["reasons"]):
         reasons.append("seniority/experience-level signal detected in description")
     if job.description_confidence == "low":
@@ -125,6 +140,7 @@ def run_daily(
     model = settings.get("model", DEFAULT_MODEL)
     ollama_url = settings.get("ollama_url", DEFAULT_OLLAMA_URL)
     ollama_timeout = int(settings.get("ollama_timeout", 120))
+    ollama_keep_alive = settings.get("ollama_keep_alive", DEFAULT_KEEP_ALIVE)
     ledger_path = project_path(settings["ledger_path"])
     output_root = project_path(settings["output_dir"])
     to_apply_dir = project_path(settings.get("to_apply_dir", "out"))
@@ -132,6 +148,21 @@ def run_daily(
     today = date.today()
     remaining = max(0, daily_limit - count_for_day(ledger_path, today))
     processed_ids = already_processed_job_ids(ledger_path)
+
+    # Sized once for the whole batch (not per job) so Ollama keeps a single
+    # loaded context resident across every evaluation in this run instead of
+    # reloading whenever a job's prompt would otherwise round to a
+    # differently sized num_ctx bucket.
+    batch_num_ctx = (
+        compute_batch_num_ctx(
+            profile,
+            [job for job in jobs if job.id not in processed_ids],
+            profile_context,
+            minimum_score,
+        )
+        if use_llm
+        else None
+    )
 
     prepared = []
     skipped = []
@@ -156,6 +187,8 @@ def run_daily(
             ollama_timeout=ollama_timeout,
             profile_source=str(profile_path),
             profile_context_source=str(profile_context_path),
+            ollama_keep_alive=ollama_keep_alive,
+            ollama_num_ctx=batch_num_ctx,
         )
 
         if evaluation["decision"] != "apply":
@@ -208,6 +241,9 @@ def run_daily(
     to_preview_path = write_json_summary(
         to_preview_first, to_apply_dir / f"to_preview_first_{today.isoformat()}.json"
     )
+
+    if use_llm:
+        unload_model(model, ollama_url)
 
     return {
         "prepared": prepared,
